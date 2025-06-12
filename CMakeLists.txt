@@ -52,6 +52,33 @@ FetchContent_Declare(CLIPPy
 set(CLIPPy_INCLUDE_DIR "${clippy_SOURCE_DIR}/include")
 
 
+#
+# Privateer
+#
+option(METALLDATA_USE_PRIVATEER "Use Privateer in Metall" OFF)
+
+if (METALLDATA_USE_PRIVATEER)
+    #
+    #  ZSTD
+    #
+    find_package(zstd QUIET)
+    if (NOT zstd_FOUND)
+    FetchContent_Declare(zstd
+            GIT_REPOSITORY https://github.com/facebook/zstd.git
+            GIT_TAG v1.5.4
+            )
+    FetchContent_MakeAvailable(zstd)
+    list(APPEND CMAKE_MODULE_PATH "${zstd_SOURCE_DIR}/build/cmake")
+    endif ()
+    find_package(Privateer QUIET)
+    if (NOT Privateer_FOUND)
+        FetchContent_Declare(Privateer
+                GIT_REPOSITORY https://github.com/LLNL/Privateer.git
+                GIT_TAG v0.1-dev
+                )
+        FetchContent_MakeAvailable(Privateer)
+    endif ()
+endif ()
 
 #
 #  Metall
@@ -125,6 +152,7 @@ endfunction()
 #
 # spdlog
 #
+set(SPDLOG_BUILD_SHARED ON CACHE BOOL "" FORCE)
 FetchContent_Declare(
   spdlog
   GIT_REPOSITORY https://github.com/gabime/spdlog.git
@@ -165,6 +193,21 @@ function(setup_metall_target exe_name)
 
     #target_link_libraries(${exe_name} PRIVATE Threads::Threads)
 
+    if (Privateer_FOUND)
+        target_include_directories(${exe_name} PRIVATE "${Privateer_SOURCE_DIR}/include")
+
+        find_package(OpenSSL)
+        target_link_libraries(${exe_name} PRIVATE OpenSSL::SSL)
+        target_link_libraries(${exe_name} PRIVATE OpenSSL::Crypto)
+        target_link_libraries(${exe_name} PRIVATE rt)
+        target_link_libraries(${exe_name} PRIVATE zstd)
+
+        target_compile_definitions(${exe_name} PRIVATE USE_COMPRESSION)
+
+        target_link_libraries(${exe_name} PRIVATE privateer)
+        target_compile_definitions(${exe_name} PRIVATE METALL_USE_PRIVATEER)
+    endif ()
+    
     target_link_libraries(${exe_name} PRIVATE Metall)
 
     if (FOUND_CXX17_FILESYSTEM_LIB)
